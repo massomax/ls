@@ -1,9 +1,9 @@
 import config from "../../shared/config";
+import logger from "../../shared/logger";
 
-const ENDPOINT = "https://gate.smsaero.ru/v21/sms/send";
+const ENDPOINT = "https://gate.smsaero.ru/v2/sms/send";
 
 function toProviderNumber(e164: string): string {
-  // SMS Aero хочет цифры без '+'
   return e164.replace(/[^\d]/g, "");
 }
 
@@ -19,61 +19,106 @@ export async function sendSms({
   const sign = config.smsaero.sign || "SMS Aero";
   const channel = config.smsaero.channel;
 
-  // Всегда логируем в dev, чтобы видеть код
-  if (config.nodeEnv !== "production") {
-    console.log(`[DEV SMS] -> ${to}: ${text}`);
+  logger.info(
+    {
+      provider: "smsaero",
+      to,
+      text,
+      sign,
+      channel,
+      nodeEnv: config.nodeEnv,
+    },
+    "Sending SMS",
+  );
+
+  if (!email || !apiKey) {
+    logger.warn(
+      { provider: "smsaero", to },
+      "SMS credentials are missing, skipping real send",
+    );
+    return;
   }
 
-  // Локально можно работать и без реальной отправки
-  if (!email || !apiKey) return;
-
   const number = toProviderNumber(to);
-
   const qs = new URLSearchParams();
   qs.set("number", number);
   qs.set("text", text);
   qs.set("sign", sign);
+  qs.set("answer", "json");
   if (channel) qs.set("channel", channel);
 
-  // Авторизация по Basic: base64(email:apiKey), как аналог 'email:api_key@host'
   const auth = Buffer.from(`${email}:${apiKey}`).toString("base64");
 
   let resp: Response;
   try {
     resp = await fetch(`${ENDPOINT}?${qs.toString()}`, {
-      method: "GET", // дока допускает запрос с query-параметрами
+      method: "GET",
       headers: {
         accept: "application/json",
         authorization: `Basic ${auth}`,
       },
     });
   } catch (e) {
+    logger.error(
+      {
+        provider: "smsaero",
+        to,
+        err: e,
+      },
+      "SMS provider network error",
+    );
+
     if (config.nodeEnv !== "production") {
-      console.warn(
-        "[SmsAero] network error, DEV fallback used:",
-        (e as Error)?.message
-      );
       return;
     }
+
     throw e;
   }
 
   const bodyText = await resp.text().catch(() => "");
-  let data: any = null;
+  let data: unknown = null;
   try {
     data = bodyText ? JSON.parse(bodyText) : null;
   } catch {
-    /* ignore non-JSON */
+    data = bodyText;
   }
 
-  // В dev не валим поток даже при 401/ошибке шлюза — чтобы OTP флоу работал
-  if (!resp.ok || (data && data.success === false)) {
-    const msg = data?.message || bodyText || `HTTP ${resp.status}`;
+  logger.info(
+    {
+      provider: "smsaero",
+      to,
+      status: resp.status,
+      ok: resp.ok,
+      response: data,
+    },
+    "SMS provider response",
+  );
+
+  const success =
+    typeof data === "object" &&
+    data !== null &&
+    "success" in data &&
+    (data as { success?: boolean }).success === true;
+
+  if (!resp.ok || !success) {
+    const msg =
+      typeof data === "object" &&
+      data !== null &&
+      "message" in data &&
+      typeof (data as { message?: unknown }).message === "string"
+        ? (data as { message: string }).message
+        : bodyText || `HTTP ${resp.status}`;
+
     if (config.nodeEnv !== "production") {
-      console.warn(`[SmsAero] Error: ${msg} (DEV fallback used)`);
+      logger.warn(
+        { provider: "smsaero", to, message: msg },
+        "SMS send failed in non-production",
+      );
       return;
     }
+
     throw new Error(`SmsAero error: ${msg}`);
   }
 }
+
 export default sendSms;
