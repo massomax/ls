@@ -1,0 +1,2563 @@
+openapi: 3.0.3
+info:
+  title: LastPiece API
+  version: "1.0.0"
+  description: |
+    Серверная API. Аутентификация: Bearer JWT (accessToken),
+    refreshToken хранится в HttpOnly cookie. Базовый URL зависит от PORT
+    (по умолчанию 3000).
+
+servers:
+  - url: http://localhost:3000
+    description: Default PORT=3000 (см. src/shared/config/index.ts)
+
+tags:
+  - name: Health
+  - name: Docs
+  - name: Auth
+  - name: Users
+  - name: Favorites
+  - name: Sellers
+  - name: Admin/Sellers
+  - name: OfferTypes
+  - name: Admin/OfferTypes
+  - name: Categories
+  - name: Admin/Categories
+  - name: Subcategories
+  - name: Admin/Subcategories
+  - name: Products (Public)
+  - name: Seller/Products
+  - name: Admin/Products
+  - name: Notifications
+  - name: Uploads
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    BadRequest:
+      description: BadRequest
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: NotFound
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: Conflict
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    TooManyRequests:
+      description: TooManyRequests
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        message: { type: string, nullable: true }
+        details:
+          type: object
+          nullable: true
+          additionalProperties: true
+
+    HealthResponse:
+      type: object
+      properties:
+        status: { type: string }
+
+    AuthPingResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+        where: { type: string }
+
+    AuthLoginSmsRequest:
+      type: object
+      required: [phone]
+      properties:
+        phone:
+          type: string
+          minLength: 5
+          maxLength: 32
+
+    AuthLoginSmsVerifyRequest:
+      type: object
+      required: [phone, code]
+      properties:
+        phone:
+          type: string
+          minLength: 5
+          maxLength: 32
+        code:
+          type: string
+          minLength: 4
+          maxLength: 8
+
+    AuthLoginSmsVerifyResponse:
+      type: object
+      properties:
+        accessToken: { type: string }
+        roles:
+          type: array
+          items: { type: string }
+
+    AuthRefreshResponse:
+      type: object
+      properties:
+        accessToken: { type: string }
+
+    UserProfile:
+      type: object
+      properties:
+        id: { type: string }
+        phone: { type: string }
+        isPhoneVerified: { type: boolean }
+        name: { type: string, nullable: true }
+        gender:
+          type: string
+          nullable: true
+          enum: [male, female, other]
+        birthDate:
+          type: string
+          nullable: true
+          description: ISO строка даты или даты-времени
+        roles:
+          type: array
+          items: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    UserPatchRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 64
+        gender:
+          type: string
+          enum: [male, female, other]
+        birthDate:
+          type: string
+          description: ISO datetime или YYYY-MM-DD
+
+    FavoriteItem:
+      type: object
+      properties:
+        id: { type: string }
+        productId: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    FavoritesListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/FavoriteItem' }
+        nextCursor: { type: string, nullable: true }
+
+    FavoriteCreateRequest:
+      type: object
+      required: [productId]
+      properties:
+        productId:
+          type: string
+          minLength: 8
+
+    SellerApplyRequest:
+      type: object
+      required: [companyName, inn]
+      properties:
+        companyName:
+          type: string
+          minLength: 2
+          maxLength: 120
+        inn:
+          type: string
+          description: 10-12 цифр
+          pattern: '^\d{10,12}$'
+        ogrn:
+          type: string
+          description: 13-15 цифр
+          pattern: '^\d{13,15}$'
+        legalAddress:
+          type: string
+          maxLength: 240
+        website:
+          type: string
+          format: uri
+        contactName:
+          type: string
+          maxLength: 120
+        contactEmail:
+          type: string
+          format: email
+
+    SellerApplyResponse:
+      type: object
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [pending, active, rejected, suspended] }
+
+    SellerProfile:
+      type: object
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [pending, active, rejected, suspended] }
+        isVerified: { type: boolean }
+        tier: { type: string, enum: [free, plus, pro] }
+        companyName: { type: string }
+        inn: { type: string }
+        ogrn: { type: string, nullable: true }
+        legalAddress: { type: string, nullable: true }
+        website: { type: string, nullable: true }
+        contactName: { type: string, nullable: true }
+        contactEmail: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    SellerStatsResponse:
+      type: object
+      properties:
+        period: { type: string }
+        products:
+          type: object
+          properties:
+            total: { type: integer }
+            active: { type: integer }
+            archived: { type: integer }
+        views7d: { type: integer }
+        views30d: { type: integer }
+        favorites: { type: integer }
+        clicks7d: { type: integer }
+
+    AdminSellerListItem:
+      type: object
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        phone: { type: string, nullable: true }
+        roles:
+          type: array
+          items: { type: string }
+        status: { type: string, enum: [pending, active, rejected, suspended] }
+        isVerified: { type: boolean }
+        tier: { type: string, enum: [free, plus, pro] }
+        companyName: { type: string }
+        inn: { type: string }
+        contactEmail: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    AdminSellerListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AdminSellerListItem' }
+        nextCursor: { type: string, nullable: true }
+
+    AdminSellerDetailResponse:
+      type: object
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        phone: { type: string, nullable: true }
+        roles:
+          type: array
+          items: { type: string }
+        status: { type: string, enum: [pending, active, rejected, suspended] }
+        isVerified: { type: boolean }
+        tier: { type: string, enum: [free, plus, pro] }
+        companyName: { type: string }
+        inn: { type: string }
+        ogrn: { type: string, nullable: true }
+        legalAddress: { type: string, nullable: true }
+        website: { type: string, nullable: true }
+        contactName: { type: string, nullable: true }
+        contactEmail: { type: string, nullable: true }
+        moderationNote: { type: string, nullable: true }
+        approvedAt: { type: string, format: date-time, nullable: true }
+        rejectedAt: { type: string, format: date-time, nullable: true }
+        suspendedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    AdminSellerRejectRequest:
+      type: object
+      properties:
+        reason: { type: string, maxLength: 400 }
+
+    AdminSellerTierRequest:
+      type: object
+      required: [tier]
+      properties:
+        tier: { type: string, enum: [free, plus, pro] }
+
+    OfferTypePublicItem:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        slug: { type: string }
+        sortOrder: { type: integer }
+        boostMultiplier: { type: number }
+        badgeText: { type: string, nullable: true }
+        badgeColor: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+
+    OfferTypeListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/OfferTypePublicItem' }
+        nextCursor: { type: string, nullable: true }
+
+    OfferTypeCreateRequest:
+      type: object
+      required: [name, slug]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 40
+        slug:
+          type: string
+          description: regex ^[a-z0-9_-]{2,32}$
+        sortOrder:
+          type: integer
+          minimum: -1000000
+          maximum: 1000000
+          default: 0
+        boostMultiplier:
+          type: number
+          minimum: 0.1
+          maximum: 5
+          default: 1.0
+        badgeText:
+          type: string
+          maxLength: 16
+        badgeColor:
+          type: string
+          maxLength: 16
+        description:
+          type: string
+          maxLength: 200
+        status:
+          type: string
+          enum: [active, archived, pending]
+
+    OfferTypeUpdateRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 2, maxLength: 40 }
+        slug:
+          type: string
+          description: regex ^[a-z0-9_-]{2,32}$
+        sortOrder:
+          type: integer
+          minimum: -1000000
+          maximum: 1000000
+        boostMultiplier:
+          type: number
+          minimum: 0.1
+          maximum: 5
+        badgeText:
+          type: string
+          maxLength: 16
+        badgeColor:
+          type: string
+          maxLength: 16
+        description:
+          type: string
+          maxLength: 200
+        status:
+          type: string
+          enum: [active, archived, pending]
+
+    OfferTypeAdminResponse:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        slug: { type: string }
+        status: { type: string, enum: [active, archived, pending] }
+        sortOrder: { type: integer }
+        boostMultiplier: { type: number }
+        badgeText: { type: string, nullable: true }
+        badgeColor: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+
+    OfferTypeMergeRequest:
+      type: object
+      required: [targetId]
+      properties:
+        targetId: { type: string, minLength: 8 }
+
+    OfferTypeMergeResponse:
+      type: object
+      properties:
+        mergedFrom: { type: string }
+        mergedTo: { type: string }
+
+    CategoryItem:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        slug: { type: string }
+        svgUrl: { type: string }
+        sortOrder: { type: integer }
+        description: { type: string, nullable: true }
+
+    CategoryListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CategoryItem' }
+
+    SubcategoryItem:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        slug: { type: string }
+        description: { type: string, nullable: true }
+
+    SubcategoryListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/SubcategoryItem' }
+
+    CategoryCreateRequest:
+      type: object
+      required: [name, slug, svgUrl]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 80 }
+        slug:
+          type: string
+          description: regex ^[a-z0-9_-]{2,64}$
+        svgUrl: { type: string, format: uri }
+        sortOrder:
+          type: integer
+          minimum: -1000000
+          maximum: 1000000
+          default: 0
+        description: { type: string, maxLength: 200 }
+        status: { type: string, enum: [active, archived] }
+
+    CategoryUpdateRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 2, maxLength: 80 }
+        slug:
+          type: string
+          description: regex ^[a-z0-9_-]{2,64}$
+        svgUrl: { type: string, format: uri }
+        sortOrder:
+          type: integer
+          minimum: -1000000
+          maximum: 1000000
+        description: { type: string, maxLength: 200 }
+        status: { type: string, enum: [active, archived] }
+
+    CategoryAdminResponse:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        slug: { type: string }
+        svgUrl: { type: string }
+        status: { type: string, enum: [active, archived] }
+        sortOrder: { type: integer }
+        description: { type: string, nullable: true }
+
+    SubcategoryProposeRequest:
+      type: object
+      required: [parentCategoryId, name]
+      properties:
+        parentCategoryId: { type: string, minLength: 8 }
+        name: { type: string, minLength: 2, maxLength: 64 }
+        description: { type: string, maxLength: 200 }
+
+    SubcategoryProposeResponse:
+      type: object
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [pending] }
+        slug: { type: string }
+
+    AdminSubcategoryPendingItem:
+      type: object
+      properties:
+        id: { type: string }
+        parentCategoryId: { type: string }
+        name: { type: string }
+        slug: { type: string }
+        createdBy: { type: string, enum: [admin, seller] }
+        proposedBySellerId: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    AdminSubcategoryPendingResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AdminSubcategoryPendingItem' }
+        nextCursor: { type: string, nullable: true }
+
+    AdminSubcategoryApproveRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 2, maxLength: 64 }
+        slug: { type: string, minLength: 2, maxLength: 120 }
+        description: { type: string, maxLength: 500 }
+
+    AdminSubcategoryApproveResponse:
+      type: object
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [active] }
+        name: { type: string }
+        slug: { type: string }
+
+    AdminSubcategoryRejectRequest:
+      type: object
+      properties:
+        reason: { type: string, maxLength: 500 }
+
+    AdminSubcategoryStatusResponse:
+      type: object
+      properties:
+        id: { type: string }
+        status: { type: string }
+
+    AdminSubcategoryMergeRequest:
+      type: object
+      required: [targetId]
+      properties:
+        targetId: { type: string, minLength: 8 }
+
+    AdminSubcategoryMergeResponse:
+      type: object
+      properties:
+        mergedFrom: { type: string }
+        mergedTo: { type: string }
+        movedProducts: { type: integer }
+
+    PublicSeller:
+      type: object
+      description: Только публичные поля продавца.
+      properties:
+        id: { type: string }
+        companyName: { type: string }
+        website: { type: string, format: uri, nullable: true }
+
+    ProductPublicItem:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        photos:
+          type: array
+          items: { type: string, format: uri }
+        price: { type: number }
+        oldPrice: { type: number }
+        discountPercent: { type: integer }
+        isHot: { type: boolean }
+        offerTypeId: { type: string }
+        mainCategoryId: { type: string }
+        subcategoryId: { type: string, nullable: true }
+        rankScore: { type: number }
+        views7d: { type: integer }
+        favoritesCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+        seller: { $ref: '#/components/schemas/PublicSeller' }
+
+    ProductPublicListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ProductPublicItem' }
+        nextCursor: { type: string, nullable: true }
+
+    ProductDetail:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        photos:
+          type: array
+          items: { type: string, format: uri }
+        price: { type: number }
+        oldPrice: { type: number }
+        discountPercent: { type: integer }
+        isHot: { type: boolean }
+        offerTypeId: { type: string }
+        mainCategoryId: { type: string }
+        subcategoryId: { type: string, nullable: true }
+        externalUrl: { type: string, nullable: true }
+        views7d: { type: integer }
+        views30d: { type: integer }
+        favoritesCount: { type: integer }
+        clicksToExternal7d: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        seller: { $ref: '#/components/schemas/PublicSeller' }
+
+    ProductSimilarItem:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        photos:
+          type: array
+          items: { type: string, format: uri }
+        price: { type: number }
+        oldPrice: { type: number }
+        discountPercent: { type: integer }
+        isHot: { type: boolean }
+
+    ProductSimilarResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ProductSimilarItem' }
+
+    ProductClickResponse:
+      type: object
+      properties:
+        externalUrl: { type: string, nullable: true }
+
+    SellerProductItem:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        price: { type: number }
+        oldPrice: { type: number }
+        status: { type: string, enum: [draft, active, archived] }
+        createdAt: { type: string, format: date-time }
+        discountPercent: { type: integer }
+
+    SellerProductsListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/SellerProductItem' }
+        nextCursor: { type: string, nullable: true }
+
+    SellerProductCreateRequest:
+      type: object
+      required: [title, oldPrice, price, mainCategoryId, offerTypeId]
+      properties:
+        title: { type: string, minLength: 2, maxLength: 160 }
+        description: { type: string, maxLength: 2000 }
+        photos:
+          type: array
+          items: { type: string, format: uri }
+          description: Максимум файлов определяется config.uploads.maxFiles
+        oldPrice: { type: number, exclusiveMinimum: 0 }
+        price: { type: number, minimum: 0 }
+        mainCategoryId: { type: string, minLength: 8 }
+        subcategoryId: { type: string, minLength: 8 }
+        offerTypeId: { type: string, minLength: 8 }
+        externalUrl: { type: string, format: uri }
+        status: { type: string, enum: [draft, active] }
+      description: |
+        price должен быть меньше oldPrice. Поле status игнорируется сервером,
+        продукт создается со статусом draft.
+
+    SellerProductUpdateRequest:
+      type: object
+      description: |
+        Частичное обновление. Если изменяются цены, сервер требует oldPrice > price
+        и может пересчитать rankScore. status допускает только draft/active.
+      properties:
+        title: { type: string, minLength: 2, maxLength: 160 }
+        description: { type: string, maxLength: 2000 }
+        photos:
+          type: array
+          items: { type: string, format: uri }
+        oldPrice: { type: number, exclusiveMinimum: 0 }
+        price: { type: number, minimum: 0 }
+        mainCategoryId: { type: string, minLength: 8 }
+        subcategoryId: { type: string, minLength: 8 }
+        offerTypeId: { type: string, minLength: 8 }
+        externalUrl: { type: string, format: uri }
+        status: { type: string, enum: [draft, active] }
+
+    SellerProductDetail:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        photos:
+          type: array
+          items: { type: string, format: uri }
+        oldPrice: { type: number }
+        price: { type: number }
+        discountPercent: { type: integer }
+        mainCategoryId: { type: string }
+        subcategoryId: { type: string, nullable: true }
+        offerTypeId: { type: string }
+        externalUrl: { type: string, nullable: true }
+        status: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    SellerProductStatusResponse:
+      type: object
+      properties:
+        id: { type: string }
+        status: { type: string }
+
+    AdminProductListItem:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        status: { type: string, enum: [draft, pending, active, rejected, archived] }
+        price: { type: number }
+        oldPrice: { type: number }
+        discountPercent: { type: integer }
+        sellerId: { type: string }
+        mainCategoryId: { type: string }
+        subcategoryId: { type: string, nullable: true }
+        offerTypeId: { type: string }
+        isFeatured: { type: boolean }
+        featuredUntil: { type: string, format: date-time, nullable: true }
+        adminTags:
+          type: array
+          items: { type: string, enum: [best, popular, new] }
+        rankScore: { type: number }
+        promotionUntil: { type: string, format: date-time, nullable: true }
+        rankAdminBoost: { type: number }
+        createdAt: { type: string, format: date-time }
+
+    AdminProductListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AdminProductListItem' }
+        nextCursor: { type: string, nullable: true }
+
+    AdminProductDetail:
+      type: object
+      description: Полный документ продукта + ссылки seller/category/subcategory/offerType.
+      properties:
+        id: { type: string }
+        sellerId: { type: string }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        photos:
+          type: array
+          items: { type: string, format: uri }
+        oldPrice: { type: number }
+        price: { type: number }
+        mainCategoryId: { type: string }
+        subcategoryId: { type: string, nullable: true }
+        offerTypeId: { type: string }
+        externalUrl: { type: string, nullable: true }
+        status: { type: string, enum: [draft, pending, active, rejected, archived] }
+        deletedAt: { type: string, format: date-time, nullable: true }
+        moderationNote: { type: string, nullable: true }
+        approvedAt: { type: string, format: date-time, nullable: true }
+        rejectedAt: { type: string, format: date-time, nullable: true }
+        moderatedBy: { type: string, nullable: true }
+        views7d: { type: integer }
+        views30d: { type: integer }
+        favoritesCount: { type: integer }
+        clicksToExternal7d: { type: integer }
+        rankScore: { type: number }
+        shuffleKey: { type: number }
+        isFeatured: { type: boolean }
+        featuredUntil: { type: string, format: date-time, nullable: true }
+        adminTags:
+          type: array
+          items: { type: string, enum: [best, popular, new] }
+        rankAdminBoost: { type: number }
+        promotionUntil: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        seller:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string }
+            companyName: { type: string }
+            status: { type: string }
+        category:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string }
+            name: { type: string }
+        subcategory:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string }
+            name: { type: string }
+        offerType:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string }
+            name: { type: string }
+            slug: { type: string }
+
+    AdminProductStatusResponse:
+      type: object
+      properties:
+        id: { type: string }
+        status: { type: string }
+
+    AdminProductFeatureRequest:
+      type: object
+      required: [featured]
+      properties:
+        featured: { type: boolean }
+        featuredUntil: { type: string, format: date-time }
+
+    AdminProductFeatureResponse:
+      type: object
+      properties:
+        id: { type: string }
+        isFeatured: { type: boolean }
+        featuredUntil: { type: string, format: date-time, nullable: true }
+
+    AdminProductTagsRequest:
+      type: object
+      properties:
+        tags:
+          type: array
+          maxItems: 6
+          items: { type: string, enum: [best, popular, new] }
+
+    AdminProductTagsResponse:
+      type: object
+      properties:
+        id: { type: string }
+        adminTags:
+          type: array
+          items: { type: string, enum: [best, popular, new] }
+
+    AdminProductPromotionRequest:
+      type: object
+      required: [rankAdminBoost]
+      properties:
+        rankAdminBoost: { type: number, minimum: 0, maximum: 1 }
+        until: { type: string, format: date-time }
+
+    AdminProductPromotionResponse:
+      type: object
+      properties:
+        id: { type: string }
+        rankAdminBoost: { type: number }
+        promotionUntil: { type: string, format: date-time, nullable: true }
+        rankScore: { type: number }
+
+    AdminProductRejectRequest:
+      type: object
+      properties:
+        reason: { type: string, maxLength: 400 }
+
+    AdminProductRejectResponse:
+      type: object
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [rejected] }
+        reason: { type: string, nullable: true }
+
+    NotificationItem:
+      type: object
+      properties:
+        id: { type: string }
+        category: { type: string, enum: [system, auth, seller, product] }
+        type: { type: string, enum: [info, success, warning, error] }
+        title: { type: string }
+        message: { type: string, nullable: true }
+        data:
+          type: object
+          nullable: true
+          additionalProperties: true
+        isRead: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        readAt: { type: string, format: date-time, nullable: true }
+
+    NotificationsListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/NotificationItem' }
+        nextCursor: { type: string, nullable: true }
+
+    NotificationsReadRequest:
+      type: object
+      required: [ids]
+      properties:
+        ids:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 8 }
+
+    NotificationsUpdatedResponse:
+      type: object
+      properties:
+        updated: { type: integer }
+
+    UploadImageItem:
+      type: object
+      properties:
+        url: { type: string }
+        deleteHash: { type: string, nullable: true }
+        id: { type: string, nullable: true }
+        originalName: { type: string }
+        size: { type: integer }
+        mime: { type: string }
+
+    UploadImagesResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/UploadImageItem' }
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthResponse' }
+
+  /openapi.json:
+    get:
+      tags: [Docs]
+      summary: OpenAPI JSON (отдача содержимого openapi.yaml)
+      responses:
+        '200':
+          description: OpenAPI JSON
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /docs:
+    get:
+      tags: [Docs]
+      summary: Swagger UI HTML
+      responses:
+        '200':
+          description: HTML
+          content:
+            text/html:
+              schema: { type: string }
+
+  /docs/init.js:
+    get:
+      tags: [Docs]
+      summary: JS инициализации Swagger UI
+      responses:
+        '200':
+          description: JS
+          content:
+            application/javascript:
+              schema: { type: string }
+
+  /swagger-ui/{assetPath}:
+    get:
+      tags: [Docs]
+      summary: Статические ассеты swagger-ui-dist
+      parameters:
+        - name: assetPath
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Статический файл
+          content:
+            '*/*':
+              schema:
+                type: string
+
+  # ----------------- AUTH -----------------
+  /api/v1/auth/ping:
+    get:
+      tags: [Auth]
+      summary: Проверка монтирования /api/v1/auth
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthPingResponse' }
+
+  /api/v1/auth/login-sms/request:
+    post:
+      tags: [Auth]
+      summary: Запросить SMS-код
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuthLoginSmsRequest' }
+      responses:
+        '204': { description: Код отправлен }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /api/v1/auth/login-sms/verify:
+    post:
+      tags: [Auth]
+      summary: Подтвердить SMS-код и получить accessToken (refresh в cookie)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuthLoginSmsVerifyRequest' }
+      responses:
+        '200':
+          description: Успешный вход
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthLoginSmsVerifyResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Обновить accessToken по refreshToken cookie
+      responses:
+        '200':
+          description: Новый accessToken
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthRefreshResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/v1/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Выйти (очистить refresh cookie)
+      responses:
+        '204': { description: Done }
+
+  # ---------------- USERS ----------------
+  /api/v1/users/me:
+    get:
+      tags: [Users]
+      summary: Профиль текущего пользователя
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Профиль
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserProfile' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+    patch:
+      tags: [Users]
+      summary: Обновить профиль текущего пользователя
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserPatchRequest' }
+      responses:
+        '200':
+          description: Обновлено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserProfile' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # -------- USERS / FAVORITES ----------
+  /api/v1/users/me/favorites:
+    get:
+      tags: [Favorites]
+      summary: Список избранного (курсорная пагинация по _id)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            description: base64 JSON {"id":"<ObjectId>"}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FavoritesListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+    post:
+      tags: [Favorites]
+      summary: Добавить товар в избранное
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FavoriteCreateRequest' }
+      responses:
+        '201':
+          description: Создано
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FavoriteItem' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/v1/users/me/favorites/{productId}:
+    delete:
+      tags: [Favorites]
+      summary: Удалить из избранного
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204': { description: Удалено }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ------------- SELLERS ---------------
+  /api/v1/sellers/apply:
+    post:
+      tags: [Sellers]
+      summary: Подать/обновить заявку продавца
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SellerApplyRequest' }
+      responses:
+        '200':
+          description: Обновлено (повторная подача)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SellerApplyResponse' }
+        '201':
+          description: Создано
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SellerApplyResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/v1/sellers/me:
+    get:
+      tags: [Sellers]
+      summary: Мой профиль продавца
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Профиль
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SellerProfile' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/sellers/me/stats:
+    get:
+      tags: [Sellers]
+      summary: Сводная статистика продавца
+      description: |
+        Параметр period в коде не используется (значение игнорируется),
+        агрегаты возвращаются "live".
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: period
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Агрегаты
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SellerStatsResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  # ---------- ADMIN / SELLERS ----------
+  /api/v1/admin/sellers:
+    get:
+      tags: [Admin/Sellers]
+      summary: Листинг продавцов/заявок
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [pending, active, rejected, suspended, all], default: pending }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            description: base64 JSON {"id":"<ObjectId>"}
+        - name: q
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminSellerListResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/admin/sellers/{id}:
+    get:
+      tags: [Admin/Sellers]
+      summary: Детали продавца
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminSellerDetailResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/admin/sellers/{id}/approve:
+    patch:
+      tags: [Admin/Sellers]
+      summary: Одобрить заявку
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Одобрено
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  status: { type: string, enum: [active] }
+                  isVerified: { type: boolean }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/admin/sellers/{id}/reject:
+    patch:
+      tags: [Admin/Sellers]
+      summary: Отклонить заявку
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminSellerRejectRequest' }
+      responses:
+        '200':
+          description: Отклонено
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  status: { type: string, enum: [rejected] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/admin/sellers/{id}/suspend:
+    patch:
+      tags: [Admin/Sellers]
+      summary: Заблокировать
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Заблокирован
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  status: { type: string, enum: [suspended] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/admin/sellers/{id}/unsuspend:
+    patch:
+      tags: [Admin/Sellers]
+      summary: Разблокировать
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Разблокирован
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  status: { type: string, enum: [active] }
+                  isVerified: { type: boolean }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/admin/sellers/{id}/tier:
+    patch:
+      tags: [Admin/Sellers]
+      summary: Сменить тариф
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminSellerTierRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  tier: { type: string, enum: [free, plus, pro] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ------------- OFFER TYPES ---------------
+  /api/v1/offer-types:
+    get:
+      tags: [OfferTypes]
+      summary: Публичный список типов предложений
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 64 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            description: base64 JSON {"sort":number,"id":"<ObjectId>"}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OfferTypeListResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+    post:
+      tags: [Admin/OfferTypes]
+      summary: Создать тип (admin)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OfferTypeCreateRequest' }
+      responses:
+        '201':
+          description: Создано
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/v1/offer-types/{id}:
+    patch:
+      tags: [Admin/OfferTypes]
+      summary: Обновить тип (admin)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OfferTypeUpdateRequest' }
+      responses:
+        '200':
+          description: Обновлено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OfferTypeAdminResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/v1/offer-types/{id}/archive:
+    patch:
+      tags: [Admin/OfferTypes]
+      summary: Архивировать тип
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Заархивировано
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  status: { type: string, enum: [archived] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/offer-types/{id}/restore:
+    patch:
+      tags: [Admin/OfferTypes]
+      summary: Восстановить тип
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Восстановлено
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  status: { type: string, enum: [active] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/offer-types/{id}/merge:
+    patch:
+      tags: [Admin/OfferTypes]
+      summary: Слить типы (archive source + mergedToId)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OfferTypeMergeRequest' }
+      responses:
+        '200':
+          description: Слито
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OfferTypeMergeResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ------------- CATEGORIES (public/admin) --------------
+  /api/v1/categories:
+    get:
+      tags: [Categories]
+      summary: Список активных категорий
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CategoryListResponse' }
+
+  /api/v1/categories/{categoryId}/subcategories:
+    get:
+      tags: [Categories]
+      summary: Подкатегории категории (активные)
+      parameters:
+        - name: categoryId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SubcategoryListResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /api/v1/categories/by-slug/{slug}:
+    get:
+      tags: [Categories]
+      summary: Получить категорию по slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CategoryItem' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/admin/categories:
+    post:
+      tags: [Admin/Categories]
+      summary: Создать категорию
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategoryCreateRequest' }
+      responses:
+        '201':
+          description: Создано
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/v1/admin/categories/{id}:
+    patch:
+      tags: [Admin/Categories]
+      summary: Обновить категорию
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategoryUpdateRequest' }
+      responses:
+        '200':
+          description: Обновлено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CategoryAdminResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/v1/admin/categories/{id}/archive:
+    patch:
+      tags: [Admin/Categories]
+      summary: Архивировать категорию
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Заархивировано
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  status: { type: string, enum: [archived] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/admin/categories/{id}/restore:
+    patch:
+      tags: [Admin/Categories]
+      summary: Восстановить категорию
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Восстановлено
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  status: { type: string, enum: [active] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # -------- SUBCATEGORIES ----------
+  /api/v1/subcategories/propose:
+    post:
+      tags: [Subcategories]
+      summary: Предложить подкатегорию (seller/admin)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SubcategoryProposeRequest' }
+      responses:
+        '201':
+          description: Создано (pending)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SubcategoryProposeResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/v1/admin/subcategories/pending:
+    get:
+      tags: [Admin/Subcategories]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: categoryId
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            description: base64 JSON {"id":"<ObjectId>"}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminSubcategoryPendingResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/admin/subcategories/{id}/approve:
+    patch:
+      tags: [Admin/Subcategories]
+      summary: Одобрить подкатегорию
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminSubcategoryApproveRequest' }
+      responses:
+        '200':
+          description: Одобрено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminSubcategoryApproveResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/v1/admin/subcategories/{id}/reject:
+    patch:
+      tags: [Admin/Subcategories]
+      summary: Отклонить подкатегорию (archived + reason)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminSubcategoryRejectRequest' }
+      responses:
+        '200':
+          description: Отклонено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminSubcategoryStatusResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/admin/subcategories/{id}/merge:
+    patch:
+      tags: [Admin/Subcategories]
+      summary: Слить подкатегории (перенос товаров)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminSubcategoryMergeRequest' }
+      responses:
+        '200':
+          description: Слито
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminSubcategoryMergeResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/v1/admin/subcategories/{id}/archive:
+    patch:
+      tags: [Admin/Subcategories]
+      summary: Архивировать подкатегорию
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminSubcategoryRejectRequest' }
+      responses:
+        '200':
+          description: Заархивировано
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminSubcategoryStatusResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/admin/subcategories/{id}/restore:
+    patch:
+      tags: [Admin/Subcategories]
+      summary: Восстановить подкатегорию
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Восстановлено
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  status: { type: string, enum: [active] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  # ------------- PRODUCTS (PUBLIC) --------------
+  /api/v1/products:
+    get:
+      tags: [Products (Public)]
+      summary: Публичная витрина
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [rank, new, popular], default: rank }
+        - name: category
+          in: query
+          schema: { type: string }
+        - name: subcategory
+          in: query
+          schema: { type: string }
+        - name: offerTypeSlug
+          in: query
+          schema: { type: string }
+        - name: hot
+          in: query
+          schema: { type: integer }
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            description: base64 cursor зависит от sort (см. код)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductPublicListResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /api/v1/products/{id}:
+    get:
+      tags: [Products (Public)]
+      summary: Карточка товара
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/products/similar/{id}:
+    get:
+      tags: [Products (Public)]
+      summary: Похожие товары
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductSimilarResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/products/{id}/click:
+    post:
+      tags: [Products (Public)]
+      summary: Зарегистрировать клик и вернуть externalUrl
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductClickResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ------------- SELLER / PRODUCTS --------------
+  /api/v1/seller/products:
+    get:
+      tags: [Seller/Products]
+      security: [{ bearerAuth: [] }]
+      summary: Мой список товаров
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [all, draft, active, archived], default: all }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            description: base64 JSON {"id":"<ObjectId>"}
+        - name: q
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SellerProductsListResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+    post:
+      tags: [Seller/Products]
+      security: [{ bearerAuth: [] }]
+      summary: Создать товар
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SellerProductCreateRequest' }
+      responses:
+        '201':
+          description: Создано
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/seller/products/{id}:
+    get:
+      tags: [Seller/Products]
+      security: [{ bearerAuth: [] }]
+      summary: Детали товара продавца
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SellerProductDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+    patch:
+      tags: [Seller/Products]
+      security: [{ bearerAuth: [] }]
+      summary: Обновить товар продавца
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SellerProductUpdateRequest' }
+      responses:
+        '200':
+          description: Обновлено
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+    delete:
+      tags: [Seller/Products]
+      security: [{ bearerAuth: [] }]
+      summary: Удалить товар (soft-delete)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204': { description: Удалено (soft) }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/seller/products/{id}/publish:
+    patch:
+      tags: [Seller/Products]
+      security: [{ bearerAuth: [] }]
+      summary: Отправить товар на модерацию
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Отправлено на модерацию
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  status: { type: string, enum: [pending] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/seller/products/{id}/unpublish:
+    patch:
+      tags: [Seller/Products]
+      security: [{ bearerAuth: [] }]
+      summary: Снять с публикации
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Снято
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SellerProductStatusResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ------------- ADMIN / PRODUCTS --------------
+  /api/v1/admin/products:
+    get:
+      tags: [Admin/Products]
+      security: [{ bearerAuth: [] }]
+      summary: Листинг товаров (расширенный фильтр)
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [all, draft, pending, active, rejected, archived], default: all }
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: sellerId
+          in: query
+          schema: { type: string }
+        - name: categoryId
+          in: query
+          schema: { type: string }
+        - name: subcategoryId
+          in: query
+          schema: { type: string }
+        - name: offerTypeId
+          in: query
+          schema: { type: string }
+        - name: featured
+          in: query
+          schema: { type: integer, enum: [1] }
+        - name: hot
+          in: query
+          schema: { type: integer, enum: [1] }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            description: base64 JSON {"id":"<ObjectId>"}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminProductListResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/admin/products/{id}:
+    get:
+      tags: [Admin/Products]
+      security: [{ bearerAuth: [] }]
+      summary: Детали товара (полный документ + ссылки)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Детали
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminProductDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Admin/Products]
+      security: [{ bearerAuth: [] }]
+      summary: Удалить товар (hard delete)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204': { description: Удалено }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/admin/products/{id}/publish:
+    patch:
+      tags: [Admin/Products]
+      security: [{ bearerAuth: [] }]
+      summary: Опубликовать (status=active)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminProductStatusResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/admin/products/{id}/unpublish:
+    patch:
+      tags: [Admin/Products]
+      security: [{ bearerAuth: [] }]
+      summary: Снять с публикации (status=draft)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminProductStatusResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/admin/products/{id}/archive:
+    patch:
+      tags: [Admin/Products]
+      security: [{ bearerAuth: [] }]
+      summary: Архивировать (status=archived)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminProductStatusResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/admin/products/{id}/restore:
+    patch:
+      tags: [Admin/Products]
+      security: [{ bearerAuth: [] }]
+      summary: Восстановить (status=active)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminProductStatusResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/admin/products/{id}/feature:
+    patch:
+      tags: [Admin/Products]
+      security: [{ bearerAuth: [] }]
+      summary: Управление featured
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminProductFeatureRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminProductFeatureResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/admin/products/{id}/tags:
+    patch:
+      tags: [Admin/Products]
+      security: [{ bearerAuth: [] }]
+      summary: Управление adminTags
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminProductTagsRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminProductTagsResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/admin/products/{id}/promotion:
+    patch:
+      tags: [Admin/Products]
+      security: [{ bearerAuth: [] }]
+      summary: Админский буст ранга
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminProductPromotionRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminProductPromotionResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/admin/products/{id}/approve:
+    patch:
+      tags: [Admin/Products]
+      security: [{ bearerAuth: [] }]
+      summary: Одобрить товар (pending -> active)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Одобрен
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminProductStatusResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/v1/admin/products/{id}/reject:
+    patch:
+      tags: [Admin/Products]
+      security: [{ bearerAuth: [] }]
+      summary: Отклонить товар (pending -> rejected)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminProductRejectRequest' }
+      responses:
+        '200':
+          description: Отклонен
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminProductRejectResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  # ------------- NOTIFICATIONS --------------
+  /api/v1/notifications:
+    get:
+      tags: [Notifications]
+      security: [{ bearerAuth: [] }]
+      summary: Список уведомлений
+      parameters:
+        - name: unread
+          in: query
+          schema: { type: integer, description: '1 чтобы получить только непрочитанные' }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            description: base64 JSON {"id":"<ObjectId>"}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificationsListResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/notifications/read:
+    post:
+      tags: [Notifications]
+      security: [{ bearerAuth: [] }]
+      summary: Пометить выбранные уведомления как прочитанные
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NotificationsReadRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificationsUpdatedResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/notifications/read-all:
+    post:
+      tags: [Notifications]
+      security: [{ bearerAuth: [] }]
+      summary: Пометить все уведомления как прочитанные
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificationsUpdatedResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/notifications/{id}:
+    delete:
+      tags: [Notifications]
+      security: [{ bearerAuth: [] }]
+      summary: Удалить уведомление
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204': { description: Удалено }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  # ------------- UPLOADS --------------
+  /api/v1/uploads/images:
+    post:
+      tags: [Uploads]
+      summary: Загрузить изображения (multipart/form-data)
+      description: |
+        Ограничения берутся из config.uploads:
+        maxFiles, maxMb, allowedMime.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        '201':
+          description: Загружено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UploadImagesResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }

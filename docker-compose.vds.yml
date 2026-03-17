@@ -1,0 +1,48 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: ls-mongo
+    restart: unless-stopped
+    env_file:
+      - ./server/.env.vds
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - ls_network
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: ls-server
+    restart: unless-stopped
+    env_file:
+      - ./server/.env.vds
+    depends_on:
+      - mongo
+    ports:
+      - "127.0.0.1:${SERVER_PORT_HOST:-3101}:3000"
+    networks:
+      - ls_network
+
+  front:
+    build:
+      context: ./front
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    container_name: ls-front
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "127.0.0.1:${FRONT_PORT_HOST:-3100}:3000"
+    networks:
+      - ls_network
+
+volumes:
+  mongo_data:
+
+networks:
+  ls_network:
+    driver: bridge

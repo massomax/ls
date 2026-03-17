@@ -1,0 +1,42 @@
+/* 1) Токены UI-kit (CSS variables) */
+@import "../packages/ui/tokens/tokens.css";
+
+/* 2) Tailwind v4 */
+@import "tailwindcss";
+
+/* 3) Сканируем классы в UI-kit (иначе Tailwind может их не сгенерировать) */
+@source "../packages/ui";
+
+/* 4) CSS-first конфигурация Tailwind v4: объявляем theme tokens без tailwind.config.js */
+@theme {
+  /* Colors -> дадут классы вроде bg-lp-bg, text-lp-text, border-lp-border, ring-lp-primary */
+  --color-lp-primary: var(--lp-primary);
+  --color-lp-accent: var(--lp-accent);
+
+  --color-lp-bg: var(--lp-bg);
+  --color-lp-surface: var(--lp-surface);
+  --color-lp-border: var(--lp-border);
+
+  --color-lp-text: var(--lp-text);
+  --color-lp-muted: var(--lp-muted);
+
+  --color-lp-danger: var(--lp-danger);
+  --color-lp-success: var(--lp-success);
+  --color-lp-warning: var(--lp-warning);
+
+  /* Radius -> дадут rounded-lp-card / rounded-lp-container / rounded-lp-control (если захотите) */
+  --radius-lp-card: var(--lp-radius-card);
+  --radius-lp-container: var(--lp-radius-container);
+  --radius-lp-control: var(--lp-radius-control);
+
+  /* Shadows -> дадут shadow-lp-sm / shadow-lp-md / shadow-lp-xl */
+  --shadow-lp-sm: var(--lp-shadow-sm);
+  --shadow-lp-md: var(--lp-shadow-md);
+  --shadow-lp-xl: var(--lp-shadow-xl);
+}
+
+/* 5) (Опционально) базовые глобальные стили проекта можно добавлять ниже */
+html,
+body {
+  height: 100%;
+}

@@ -1,0 +1,7 @@
+node_modules
+dist
+npm-debug.log*
+.git
+.gitignore
+SERVER_DOCUMENTATION.md
+SERVER_DOCUMENTATION_RU.md

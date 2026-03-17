@@ -1,0 +1,49 @@
+# --- Node / build artifacts ---
+node_modules/
+dist/
+build/
+.tmp/
+temp/
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.eslintcache
+
+# --- TypeScript ---
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# --- Tests / coverage ---
+coverage/
+.nyc_output/
+
+# --- Env / секреты ---
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# --- Editors / OS junk ---
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# --- Runtime ---
+*.pid
+*.pid.lock
+
+# --- Lockfiles (используем pnpm) ---
+yarn.lock
+package-lock.json
+
+# --- Misc ---
+package-lock.json.*
