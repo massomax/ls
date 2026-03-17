@@ -1,20 +1,20 @@
 import { Router } from "express";
+import jwt from "jsonwebtoken";
 import { z } from "zod";
+import sendSms from "../../infra/sms/smsAeroAdapter";
+import config from "../../shared/config";
 import {
   BadRequestError,
   UnauthorizedError,
 } from "../../shared/errors/httpErrors";
-import { issueCode, verifyCode } from "./otpService";
-import sendSms from "../../infra/sms/smsAeroAdapter";
-import User from "../users/userModel";
-import { issueAccess, issueRefresh, setRefreshCookie } from "./tokenService";
-import jwt from "jsonwebtoken";
-import config from "../../shared/config";
+import logger from "../../shared/logger";
 import { normalizeE164 } from "../../shared/utils/phone";
+import { issueAccess, issueRefresh, setRefreshCookie } from "./tokenService";
+import { issueCode, verifyCode } from "./otpService";
+import User from "../users/userModel";
 
 const router = Router();
 
-// Вспомогательный пинг, чтобы быстро проверить, что /api/v1/auth смонтирован
 router.get("/ping", (_req, res) => res.json({ ok: true, where: "auth" }));
 
 const phoneSchema = z.object({ phone: z.string().min(5).max(32) });
@@ -29,6 +29,7 @@ router.post("/login-sms/request", async (req, res) => {
 
   const e164 = normalizeE164(parsed.data.phone);
   if (!e164) throw new BadRequestError("Invalid phone");
+
   let user = await User.findOne({ phone: e164 });
   if (!user) {
     user = await User.create({
@@ -39,8 +40,31 @@ router.post("/login-sms/request", async (req, res) => {
   }
 
   const { code } = await issueCode(e164);
-  const text = `Ваш код входа: ${code}. Никому его не сообщайте.`;
-  await sendSms({ to: e164, text: `Kod dlya vhoda: ${code}. Nikomu ego ne soobschayte.` });
+
+  logger.info(
+    {
+      phone: e164,
+      code,
+      channel: "login-sms",
+    },
+    "OTP code issued",
+  );
+
+  try {
+    await sendSms({
+      to: e164,
+      text: `Kod dlya vhoda: ${code}. Nikomu ego ne soobschayte.`,
+    });
+  } catch (err) {
+    logger.error(
+      {
+        phone: e164,
+        code,
+        err,
+      },
+      "SMS send failed, OTP remains active",
+    );
+  }
 
   res.sendStatus(204);
 });
@@ -58,7 +82,7 @@ router.post("/login-sms/verify", async (req, res) => {
   const user = await User.findOneAndUpdate(
     { phone: e164 },
     { $set: { isPhoneVerified: true } },
-    { new: true }
+    { new: true },
   );
   if (!user) throw new UnauthorizedError("UserNotFound");
 
@@ -82,8 +106,10 @@ router.post("/refresh", async (req, res) => {
       roles?: string[];
       typ?: string;
     };
-    if (payload.typ !== "refresh")
+
+    if (payload.typ !== "refresh") {
       throw new UnauthorizedError("InvalidRefresh");
+    }
 
     const accessToken = issueAccess({ sub: payload.sub, roles: payload.roles });
     const refreshToken = issueRefresh({
